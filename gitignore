@@ -1,0 +1,41 @@
+# ============================================================
+#  .gitignore - Files to never commit to Git
+# ============================================================
+
+# Environment & secrets
+.env
+
+# Model artifacts (too large for Git - use Git LFS or cloud storage)
+*.pkl
+*.npy
+*.npz
+*.pt
+*.pth
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db 
+
+# Logs
+*.log
+logs/
+
+# Output images
+outputs/
+*.png
+*.jpg
