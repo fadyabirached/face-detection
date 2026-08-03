@@ -1,0 +1,15 @@
+# Minimal lint config for CI — keeps checks focused on real issues
+# (unused imports/vars, undefined names) rather than style bikeshedding.
+line-length = 100
+target-version = "py311"
+
+# The notebook is exploratory Colab code (magic uploads, print-art
+# banners, etc.) and isn't part of the shipped application — exclude it
+# from linting so CI stays focused on app.py / config.py / tests/.
+extend-exclude = ["face-detection.ipynb"]
+
+[lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # long lines — the Gradio custom CSS block has long strings
+]

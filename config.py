@@ -1,11 +1,10 @@
 #  config.py - Central Configuration
 import os
-import torch
 from dotenv import load_dotenv
 
 load_dotenv()   # loads variables from .env file
 
-# Device 
+# Device
 DEVICE = "cpu"
 
 # Paths
@@ -26,7 +25,7 @@ SERVER_NAME    = os.getenv("SERVER_NAME", "0.0.0.0")
 SERVER_PORT    = int(os.getenv("SERVER_PORT", 7860))
 SHARE          = os.getenv("SHARE", "false").lower() == "true"
 
-# Visual theme 
+# Visual theme
 DARK_BG    = "#0A0F1E"
 PANEL_BG   = "#0D1526"
 NEON_GREEN = "#00FFB2"

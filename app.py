@@ -11,7 +11,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
 from facenet_pytorch import MTCNN, InceptionResnetV1
-import os
 
 # Import all settings from config
 from config import (
