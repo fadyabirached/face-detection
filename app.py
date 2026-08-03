@@ -18,6 +18,7 @@ from config import (
     DEFAULT_TOP_K, MAX_TOP_K,
     FACE_MARGIN, MIN_FACE_SIZE, DETECT_THRESH,
     SERVER_NAME, SERVER_PORT, SHARE,
+    UNKNOWN_LABEL, UNKNOWN_COLOR, MIN_MARGIN_RATIO, MIN_ABS_CONFIDENCE,
     DARK_BG, PANEL_BG, NEON_GREEN, NEON_BLUE,
     NEON_PINK, TEXT_COLOR, FACE_COLORS
 )
@@ -53,6 +54,47 @@ print(f"{'='*50}\n")
 
 # PREDICTION ENGINE
 
+def decide_identity(
+    top_names,
+    top_confs,
+    min_margin_ratio=MIN_MARGIN_RATIO,
+    min_abs_confidence=MIN_ABS_CONFIDENCE,
+):
+    """Decide whether the top candidate is a confident match, or the face
+    should be treated as unrecognized.
+
+    Uses the *margin* between the top-1 and top-2 candidate confidences
+    rather than raw top-1 confidence. Raw confidence is diluted by how
+    many classes are competing and by how many training images a given
+    identity had, so a correct match for someone with few training
+    photos can legitimately score a low absolute confidence while still
+    being clearly the best candidate — rejecting on raw confidence alone
+    would wrongly call that person "Unknown". A genuinely unrecognized
+    face, by contrast, tends to produce several similarly-weak
+    candidates with no clear winner, which shows up as a small margin.
+
+    `min_abs_confidence` is a secondary guard against the degenerate
+    case where the whole distribution is near-uniform noise but a tiny
+    margin still happens to exist between the top two entries.
+
+    Returns (name, confidence, is_known).
+    """
+    if not top_names:
+        return UNKNOWN_LABEL, 0.0, False
+
+    top1_conf = top_confs[0]
+    top2_conf = top_confs[1] if len(top_confs) > 1 else 0.0
+
+    if top1_conf < min_abs_confidence:
+        return UNKNOWN_LABEL, top1_conf, False
+
+    margin_ratio = top1_conf / top2_conf if top2_conf > 0 else float("inf")
+    if margin_ratio < min_margin_ratio:
+        return UNKNOWN_LABEL, top1_conf, False
+
+    return top_names[0], top1_conf, True
+
+
 def run_recognition(pil_img, top_k=DEFAULT_TOP_K):
     """
     Full pipeline: PIL image -> detect faces -> embed -> classify.
@@ -83,24 +125,6 @@ def run_recognition(pil_img, top_k=DEFAULT_TOP_K):
 
     for i, (box, prob) in enumerate(zip(boxes, probs)):
         x1, y1, x2, y2 = [int(v) for v in box]
-        color = FACE_COLORS[i % len(FACE_COLORS)]
-
-        # Glow effect
-        for thickness, alpha in [(8, 40), (5, 80), (2, 180), (1, 255)]:
-            draw.rectangle([x1, y1, x2, y2], outline=color, width=thickness)
-
-        # Corner brackets (cyberpunk HUD style)
-        bracket = 20
-        for (cx, cy, sx, sy) in [
-            (x1, y1,  1,  1), (x2, y1, -1,  1),
-            (x1, y2,  1, -1), (x2, y2, -1, -1)
-        ]:
-            draw.line([cx, cy, cx + sx*bracket, cy], fill=color, width=3)
-            draw.line([cx, cy, cx, cy + sy*bracket], fill=color, width=3)
-
-        # Face number label
-        draw.rectangle([x1, y1-24, x1+28, y1], fill=color)
-        draw.text((x1+4, y1-22), f"#{i+1}", fill="#000000")
 
         # Crop face with margin
         fx1 = max(0, x1 - FACE_MARGIN)
@@ -125,6 +149,31 @@ def run_recognition(pil_img, top_k=DEFAULT_TOP_K):
         top_names = [idx2label[j].replace("_", " ") for j in top_idx]
         top_confs = [float(proba[j]) * 100 for j in top_idx]
 
+        best_name, best_conf, is_known = decide_identity(top_names, top_confs)
+
+        # Colour reflects the identity decision, not just detection: a
+        # confident, known match gets its own colour from the palette;
+        # a rejected/unrecognized face is drawn in a neutral colour so
+        # it isn't mistaken for a confident identification.
+        color = FACE_COLORS[i % len(FACE_COLORS)] if is_known else UNKNOWN_COLOR
+
+        # Glow effect
+        for thickness, alpha in [(8, 40), (5, 80), (2, 180), (1, 255)]:
+            draw.rectangle([x1, y1, x2, y2], outline=color, width=thickness)
+
+        # Corner brackets (cyberpunk HUD style)
+        bracket = 20
+        for (cx, cy, sx, sy) in [
+            (x1, y1,  1,  1), (x2, y1, -1,  1),
+            (x1, y2,  1, -1), (x2, y2, -1, -1)
+        ]:
+            draw.line([cx, cy, cx + sx*bracket, cy], fill=color, width=3)
+            draw.line([cx, cy, cx, cy + sy*bracket], fill=color, width=3)
+
+        # Face number label
+        draw.rectangle([x1, y1-24, x1+28, y1], fill=color)
+        draw.text((x1+4, y1-22), f"#{i+1}", fill="#000000")
+
         face_results.append({
             "face_num"    : i + 1,
             "color"       : color,
@@ -132,8 +181,9 @@ def run_recognition(pil_img, top_k=DEFAULT_TOP_K):
             "crop"        : face_crop,
             "top_names"   : top_names,
             "top_confs"   : top_confs,
-            "best_name"   : top_names[0],
-            "best_conf"   : top_confs[0],
+            "best_name"   : best_name,
+            "best_conf"   : best_conf,
+            "is_known"    : is_known,
         })
 
     return annotated, face_results, f"  {len(face_results)} face(s) detected"
@@ -319,13 +369,20 @@ def process_image(image, top_k_slider):
     summary_lines.append("---")
 
     for r in face_results:
-        bar = "█" * int(r["best_conf"] / 10) + "░" * (10 - int(r["best_conf"] / 10))
-        summary_lines.append(
-            f"### Face #{r['face_num']}\n"
-            f"**Best match:** `{r['best_name']}`  \n"
-            f"**Confidence:** `{bar}` {r['best_conf']:.1f}%  \n"
-            f"**Detection score:** {r['detect_conf']:.1f}%\n"
-        )
+        if r["is_known"]:
+            bar = "█" * int(r["best_conf"] / 10) + "░" * (10 - int(r["best_conf"] / 10))
+            summary_lines.append(
+                f"### Face #{r['face_num']}\n"
+                f"**Best match:** `{r['best_name']}`  \n"
+                f"**Confidence:** `{bar}` {r['best_conf']:.1f}%  \n"
+                f"**Detection score:** {r['detect_conf']:.1f}%\n"
+            )
+        else:
+            summary_lines.append(
+                f"### Face #{r['face_num']}\n"
+                f"**Result:** `{UNKNOWN_LABEL}` — no confident match in the training set  \n"
+                f"**Detection score:** {r['detect_conf']:.1f}%\n"
+            )
         summary_lines.append("**Top candidates:**")
         for name, conf in zip(r["top_names"][:4], r["top_confs"][:4]):
             marker = "▶" if conf == r["top_confs"][0] else "  "

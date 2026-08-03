@@ -198,6 +198,40 @@ All parameters are in `config.py` and overridable via `.env` (see `.env.example`
 | `SHARE` | `false` | Set `true` for public Gradio link |
 | `DETECT_THRESH` | `0.85` | MTCNN minimum confidence |
 | `DEFAULT_TOP_K` | `6` | Candidates shown per face |
+| `MIN_MARGIN_RATIO` | `1.5` | Top-1 must be this many times more confident than the runner-up to be accepted (see below) |
+| `MIN_ABS_CONFIDENCE` | `3.0` | Top-1 below this confidence (%) is rejected outright, regardless of margin |
+
+---
+
+## Handling unrecognized faces
+
+The SVM is a **closed-set** classifier — it always outputs *some* class, even for a
+face that isn't any of the 62 trained identities. To tell "not in the dataset" apart
+from "in the dataset but genuinely hard to classify," the app rejects on the **margin**
+between the top-1 and top-2 candidate confidences, not on raw top-1 confidence.
+
+Raw confidence alone doesn't work here: it's diluted by how many classes are competing
+and by how many training images a given identity had. A correct match for someone with
+few training photos can legitimately score a low absolute confidence — e.g. an identity
+with only a handful of training images might come back at ~20-25% — while still being
+clearly the best candidate. Rejecting on raw confidence alone would wrongly label that
+person `Unknown`. A genuinely unrecognized face, by contrast, tends to produce several
+similarly-weak candidates with no clear winner, which shows up as a small margin between
+1st and 2nd place regardless of the absolute numbers.
+
+So a face is labeled with a name only if:
+1. the top candidate's confidence is at least `MIN_ABS_CONFIDENCE` (guards against a
+   near-uniform, all-noise distribution where a tiny margin could still exist by chance), **and**
+2. the top candidate is at least `MIN_MARGIN_RATIO`× more confident than the runner-up.
+
+Otherwise the face is labeled `Unknown` — shown in a neutral color in the annotated
+image and charts instead of one of the per-face identity colors, so a rejected face
+isn't visually mistaken for a confident identification. The full ranked candidate list
+is still shown either way, so you can see what it *almost* matched to.
+
+This is a threshold heuristic, not calibrated open-set verification (no rejection ROC
+curve, no per-class thresholds) — a reasonable stopgap for a demo app, not a substitute
+for a proper open-set evaluation.
 
 ---
 

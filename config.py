@@ -25,6 +25,25 @@ SERVER_NAME    = os.getenv("SERVER_NAME", "0.0.0.0")
 SERVER_PORT    = int(os.getenv("SERVER_PORT", 7860))
 SHARE          = os.getenv("SHARE", "false").lower() == "true"
 
+# Unknown-face rejection
+#
+# The SVM is a closed-set classifier: it always picks *some* class, even
+# for a face that isn't any of the trained identities. Rejecting on raw
+# top-1 confidence alone doesn't work well here, because that confidence
+# is diluted by how many classes are competing and by how many training
+# images a given identity had — a correct match for someone with few
+# training photos can legitimately score a low absolute confidence while
+# still being clearly the best candidate. What actually separates "a real
+# but under-represented identity" from "not in the dataset at all" is the
+# *margin* between the top and runner-up candidate: a genuine match tends
+# to be decisively ahead of everyone else, while a true unknown produces
+# several similarly-weak candidates with no clear winner.
+UNKNOWN_LABEL       = "Unknown"
+UNKNOWN_COLOR       = "#7A8699"
+MIN_MARGIN_RATIO    = float(os.getenv("MIN_MARGIN_RATIO", 1.5))
+# in percentage points (top_confs are already scaled to 0-100)
+MIN_ABS_CONFIDENCE  = float(os.getenv("MIN_ABS_CONFIDENCE", 3.0))
+
 # Visual theme
 DARK_BG    = "#0A0F1E"
 PANEL_BG   = "#0D1526"
