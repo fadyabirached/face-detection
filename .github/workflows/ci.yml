@@ -1,0 +1,41 @@
+name: CI
+
+# Runs the fast, model-free part of the test suite: config loading and
+# app.py's pure logic (chart builders, detection control-flow) with the
+# FaceNet/MTCNN/SVM objects mocked out. It never needs the trained
+# model files or the LFW dataset — see README.md "Reproducing the model"
+# for the (separate, manual) steps to train those.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest ruff
+
+      - name: Lint (app.py, config.py, tests/)
+        run: ruff check app.py config.py tests/
+
+      - name: Run tests
+        run: pytest -v
