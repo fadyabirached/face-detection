@@ -1,4 +1,4 @@
-# ⬡ Face Recognition System
+# 👤 Face Recognition System
 
 [![CI](https://github.com/fadyabirached/face-detection/actions/workflows/ci.yml/badge.svg)](https://github.com/fadyabirached/face-detection/actions/workflows/ci.yml)
 
