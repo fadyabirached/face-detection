@@ -5,7 +5,11 @@ from dotenv import load_dotenv
 load_dotenv()   # loads variables from .env file
 
 # Device
-DEVICE = "cpu"
+# Deployment (Dockerfile, ACR) is CPU-only by design — see README ->
+# "Docker image". Override via env only for local benchmarking against
+# a GPU (e.g. DEVICE=cuda python benchmark.py ..., in Colab); the
+# deployed app never sets this and stays on cpu.
+DEVICE = os.getenv("DEVICE", "cpu")
 
 # Paths
 MODEL_PATH  = os.getenv("MODEL_PATH",  "face_recognition_model.pkl")
