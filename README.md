@@ -61,28 +61,23 @@ face-recognition/
 ├── Dockerfile                   # CPU-only image for serving the Gradio app
 ├── .dockerignore                # Keeps dataset/venv/notebooks out of the image
 ├── README.md                    # This file
-├── face_recognition_model.pkl   # Trained SVM classifier — NOT in this repo, see below
-└── idx2label.npy                # Class index → identity name mapping — NOT in this repo, see below
+├── face_recognition_model.pkl   # Trained SVM classifier — committed, see below
+└── idx2label.npy                # Class index → identity name mapping — committed, see below
 ```
 
-> **`face_recognition_model.pkl` and `idx2label.npy` are gitignored on purpose.**
-> They are trained artifacts derived from the LFW dataset, not source code — committing
-> a model binary without the data/training run that produced it would be misleading.
-> Generate them yourself with the steps below (~15–30 min on a free Colab GPU), or
-> use your own dataset to train different identities.
+> **`face_recognition_model.pkl` and `idx2label.npy` are committed to the repo on purpose.**
+> They're trained artifacts, not source code, but the app and the Docker image need them
+> present to run at all — committing them means a fresh clone or `docker build` works
+> out of the box instead of requiring a Colab training run before anything is usable.
+> If you want to train on a different dataset or identities, see
+> [Reproducing the model](#reproducing-the-model) below.
 
 ---
 
 ## Quickstart
 
-There are two separate paths depending on what you want to do:
-
-- **"I just want to see the app run"** → you still need model files, since there's no
-  universal pretrained face-*identity* classifier to ship (identities are whoever was in
-  your training set). Follow **[Reproducing the model](#reproducing-the-model)** first,
-  then come back here.
-- **"I already have `face_recognition_model.pkl` and `idx2label.npy`"** → follow the steps
-  below directly.
+The trained model files are already in the repo, so a fresh clone runs as-is —
+no training step required first.
 
 ### 1. Clone & enter the project
 ```bash
@@ -102,32 +97,30 @@ venv\Scripts\activate           # Windows
 pip install -r requirements.txt
 ```
 
-### 4. Add model files
-Place these two files (produced by the notebook — see [Reproducing the model](#reproducing-the-model))
-in the project root:
-- `face_recognition_model.pkl`
-- `idx2label.npy`
-
-### 5. Configure environment (optional)
+### 4. Configure environment (optional)
 ```bash
 cp .env.example .env            # edit if you want non-default paths/port
 ```
 
-### 6. Run
+### 5. Run
 ```bash
 python app.py
 ```
 
 Open **http://localhost:7860** in your browser.
 
+Want to train on a different dataset or set of identities instead of the ones
+already baked in? See [Reproducing the model](#reproducing-the-model).
+
 ---
 
 ## Reproducing the model
 
-The trained classifier is tied to whichever identities you train it on, so it isn't
-included in the repo — you generate it yourself by running `face-detection.ipynb` end
-to end. The notebook was written for **Google Colab** (it uses `google.colab.files` for
-upload/download), so the easiest path is to run it there.
+The committed `face_recognition_model.pkl` / `idx2label.npy` were trained on the 62 LFW
+identities described below. To retrain on a different dataset or set of identities,
+regenerate them yourself by running `face-detection.ipynb` end to end. The notebook was
+written for **Google Colab** (it uses `google.colab.files` for upload/download), so the
+easiest path is to run it there.
 
 ### What you need
 - A free [Google Colab](https://colab.research.google.com/) account (a T4 GPU runtime
@@ -156,7 +149,8 @@ upload/download), so the easiest path is to run it there.
 8. Run the final cell (**"Download all files needed for local VS Code app"**) — it derives
    `idx2label.npy` from the saved embeddings and downloads both `face_recognition_model.pkl`
    and `idx2label.npy` to your machine via the browser.
-9. Move both downloaded files into the project root (see [Quickstart](#quickstart) step 4).
+9. Replace the committed `face_recognition_model.pkl` and `idx2label.npy` in the project
+   root with the two downloaded files.
 
 ### Expected artifact sizes
 Both files are small — the SVM classifier is typically a few MB (it stores support
@@ -214,9 +208,8 @@ docker build -t face-recognition .
 docker run -p 7860:7860 face-recognition
 ```
 
-> The image still needs `face_recognition_model.pkl` and `idx2label.npy` at runtime — see
-> [Reproducing the model](#reproducing-the-model). They aren't baked into the image; mount
-> them in or `COPY` them in a derived image/build stage.
+> `face_recognition_model.pkl` and `idx2label.npy` are committed to the repo, so `COPY . .`
+> bakes them into the image automatically — no extra mount step needed at runtime.
 
 ### Cloud deployment (Azure Container Registry)
 
