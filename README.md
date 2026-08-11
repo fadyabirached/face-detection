@@ -194,8 +194,8 @@ python benchmark.py path/to/image1.jpg path/to/image2.jpg
 ```
 
 Single-threaded CPU (matching the Dockerfile's deployed environment), on 100 runs after a
-10-run warm-up, images capped to 1280px on the long edge (a realistic upload/webcam size,
-not raw high-res stock photos):
+10-run warm-up. Detection cost scales with input pixel count (MTCNN's image-pyramid search),
+so the first version of this benchmark ran against uncapped high-res images:
 
 | Stage | Mean | p50 | p95 | p99 |
 |---|---|---|---|---|
@@ -205,12 +205,27 @@ not raw high-res stock photos):
 | SVM classify | 3.4 ms | 3.3 ms | 3.7 ms | 4.3 ms |
 | **End-to-end (single face)** | **355.0 ms** | **374.3 ms** | **429.1 ms** | **437.1 ms** |
 
-**Throughput: ~2.8 faces/sec, single-threaded.**
+Since detection was ~68% of total latency and MTCNN's cost is driven by input resolution,
+`app.py` now downscales uploads above `config.MAX_INPUT_DIM` (720px long edge, aspect
+preserved) before detection — high enough that faces at typical webcam/upload framing stay
+well above `MIN_FACE_SIZE`, low enough to cut the dominant cost:
 
-Detection dominates at roughly two-thirds of total latency — the highest-leverage place to
-optimize further would be a lighter/faster detector or batching across frames, not the SVM
-classification step, which is already negligible. These numbers are single-threaded and CPU
-only; exact milliseconds will vary by host, but the relative breakdown across stages holds.
+| Stage | Mean | p50 | p95 | p99 |
+|---|---|---|---|---|
+| MTCNN detect | 94.2 ms | 102.6 ms | 124.0 ms | 127.1 ms |
+| MTCNN align/crop | 33.9 ms | 33.8 ms | 38.9 ms | 45.1 ms |
+| FaceNet embed | 50.1 ms | 49.6 ms | 54.3 ms | 61.1 ms |
+| SVM classify | 3.6 ms | 3.5 ms | 4.0 ms | 4.6 ms |
+| **End-to-end (single face)** | **181.9 ms** | **181.7 ms** | **211.9 ms** | **217.0 ms** |
+
+**Result: 355ms → 182ms mean (-49%), throughput 2.8 → 5.5 faces/sec, single-threaded CPU.**
+
+FaceNet embedding is now the largest single stage (~50ms) and is effectively a fixed cost —
+it always processes a constant 160×160 crop, so it doesn't shrink with `MAX_INPUT_DIM`.
+Cutting further would mean quantizing/compiling the FaceNet backbone or moving to GPU, not
+just downscaling input; on CPU, ~180ms end-to-end is close to the floor for this pipeline as
+architected. These numbers are single-threaded; exact milliseconds will vary by host, but the
+relative breakdown across stages holds.
 
 ---
 
@@ -269,6 +284,7 @@ All parameters are in `config.py` and overridable via `.env` (see `.env.example`
 | `SERVER_PORT` | `7860` | Gradio server port |
 | `SHARE` | `false` | Set `true` for public Gradio link |
 | `DETECT_THRESH` | `0.85` | MTCNN minimum confidence |
+| `MAX_INPUT_DIM` | `720` | Uploads above this (long edge, px) are downscaled before detection — see [Performance](#performance) |
 | `DEFAULT_TOP_K` | `6` | Candidates shown per face |
 | `MIN_MARGIN_RATIO` | `1.5` | Top-1 must be this many times more confident than the runner-up to be accepted (see below) |
 | `MIN_ABS_CONFIDENCE` | `3.0` | Top-1 below this confidence (%) is rejected outright, regardless of margin |

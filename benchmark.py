@@ -11,8 +11,8 @@ Usage:
     python benchmark.py path/to/image1.jpg [path/to/image2.jpg ...]
 
 Runs single-threaded on CPU, matching the Dockerfile's deployed environment.
-Images are capped to a realistic upload size (see MAX_DIM below) so results
-reflect typical usage rather than being skewed by raw high-res photos.
+Images are downscaled per config.MAX_INPUT_DIM, identically to app.py, so
+results reflect actual deployed behavior rather than raw high-res photos.
 """
 import sys
 import time
@@ -26,12 +26,11 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 
 from config import (
     DEVICE, MODEL_PATH, LABELS_PATH,
-    FACE_MARGIN, MIN_FACE_SIZE, DETECT_THRESH,
+    FACE_MARGIN, MIN_FACE_SIZE, DETECT_THRESH, MAX_INPUT_DIM,
 )
 
 N_WARMUP = 10
 N_RUNS = 100
-MAX_DIM = 1280  # realistic upload/webcam size, not raw high-res stock photos
 
 
 def percentile(data, p):
@@ -54,9 +53,10 @@ def summarize(name, times_ms):
 
 
 def load_capped(path):
+    """Mirrors the exact downscale app.py's run_recognition() applies before detection."""
     im = Image.open(path).convert("RGB")
-    if max(im.size) > MAX_DIM:
-        scale = MAX_DIM / max(im.size)
+    if max(im.size) > MAX_INPUT_DIM:
+        scale = MAX_INPUT_DIM / max(im.size)
         im = im.resize((int(im.width * scale), int(im.height * scale)))
     return im
 

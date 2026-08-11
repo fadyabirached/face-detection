@@ -16,7 +16,7 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 from config import (
     DEVICE, MODEL_PATH, LABELS_PATH,
     DEFAULT_TOP_K, MAX_TOP_K,
-    FACE_MARGIN, MIN_FACE_SIZE, DETECT_THRESH,
+    FACE_MARGIN, MIN_FACE_SIZE, DETECT_THRESH, MAX_INPUT_DIM,
     SERVER_NAME, SERVER_PORT, SHARE,
     UNKNOWN_LABEL, UNKNOWN_COLOR, MIN_MARGIN_RATIO, MIN_ABS_CONFIDENCE,
     DARK_BG, PANEL_BG, NEON_GREEN, NEON_BLUE,
@@ -104,6 +104,12 @@ def run_recognition(pil_img, top_k=DEFAULT_TOP_K):
         return None, None, "No image provided."
 
     img_rgb = pil_img.convert("RGB")
+
+    # MTCNN's detection cost scales with pixel count (image-pyramid search),
+    # so downscale oversized uploads before detection — see config.MAX_INPUT_DIM.
+    if max(img_rgb.size) > MAX_INPUT_DIM:
+        scale = MAX_INPUT_DIM / max(img_rgb.size)
+        img_rgb = img_rgb.resize((int(img_rgb.width * scale), int(img_rgb.height * scale)))
 
     # Detect all faces
     boxes, probs = mtcnn.detect(img_rgb)

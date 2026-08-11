@@ -18,6 +18,13 @@ MIN_FACE_SIZE  = 30       # minimum detectable face size in pixels
 DETECT_THRESH  = 0.85     # minimum MTCNN detection confidence
 EMBEDDING_DIM  = 512      # FaceNet output dimension
 
+# MTCNN's detection cost scales with input pixel count (image-pyramid
+# search), so uploads larger than this are downscaled (long edge, aspect
+# preserved) before detection. 720px keeps faces at typical webcam/upload
+# distance comfortably above MIN_FACE_SIZE while cutting detection latency
+# substantially versus raw high-res photos. See README -> "Performance".
+MAX_INPUT_DIM  = int(os.getenv("MAX_INPUT_DIM", 720))
+
 # App settings
 DEFAULT_TOP_K  = 6        # default number of candidate identities shown
 MAX_TOP_K      = 10       # slider maximum
