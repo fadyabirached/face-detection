@@ -524,7 +524,9 @@ img { border-radius: 6px !important; }
 """
 
 # Build the interface
-with gr.Blocks(css=CUSTOM_CSS, title="Face Recognition System") as demo:
+# NOTE: Gradio 6.0 moved `css` from the Blocks() constructor to launch().
+# It is passed in demo.launch() at the bottom of this file.
+with gr.Blocks(title="Face Recognition System") as demo:
 
     # Header
     gr.HTML("""
@@ -687,6 +689,7 @@ with gr.Blocks(css=CUSTOM_CSS, title="Face Recognition System") as demo:
 # Launch
 if __name__ == "__main__":
     demo.launch(
+        css=CUSTOM_CSS,
         server_name=SERVER_NAME,
         server_port=SERVER_PORT,
         share=SHARE,

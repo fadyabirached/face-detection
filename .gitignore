@@ -12,7 +12,9 @@
 *.npz
 *.pt
 *.pth
-
+!face_recognition_model.pkl
+!idx2label.npy  
+*.whl
 # Dataset (downloaded from Kaggle, never committed)
 lfw_dataset/
 *.zip
