@@ -175,11 +175,42 @@ confidence-threshold control flow) with MTCNN/FaceNet/SVM replaced by lightweigh
 ```bash
 pip install pytest ruff
 pytest -v                              # run the test suite
-ruff check app.py config.py tests/     # lint
+ruff check app.py config.py benchmark.py tests/     # lint
 ```
 
 GitHub Actions (`.github/workflows/ci.yml`) runs both on every push/PR to `main`. CI never
 downloads the dataset or the trained model — it only exercises the model-free code paths.
+
+---
+
+## Performance
+
+`benchmark.py` times each stage of the inference pipeline — MTCNN detect, MTCNN align/crop,
+FaceNet embedding, SVM classification — the same code path `app.py` runs, on a handful of
+warm-up-excluded runs so model-load time doesn't pollute the numbers.
+
+```bash
+python benchmark.py path/to/image1.jpg path/to/image2.jpg
+```
+
+Single-threaded CPU (matching the Dockerfile's deployed environment), on 100 runs after a
+10-run warm-up, images capped to 1280px on the long edge (a realistic upload/webcam size,
+not raw high-res stock photos):
+
+| Stage | Mean | p50 | p95 | p99 |
+|---|---|---|---|---|
+| MTCNN detect | 242.8 ms | 264.8 ms | 323.9 ms | 330.2 ms |
+| MTCNN align/crop | 59.5 ms | 59.2 ms | 73.5 ms | 77.4 ms |
+| FaceNet embed | 49.2 ms | 48.7 ms | 54.1 ms | 56.8 ms |
+| SVM classify | 3.4 ms | 3.3 ms | 3.7 ms | 4.3 ms |
+| **End-to-end (single face)** | **355.0 ms** | **374.3 ms** | **429.1 ms** | **437.1 ms** |
+
+**Throughput: ~2.8 faces/sec, single-threaded.**
+
+Detection dominates at roughly two-thirds of total latency — the highest-leverage place to
+optimize further would be a lighter/faster detector or batching across frames, not the SVM
+classification step, which is already negligible. These numbers are single-threaded and CPU
+only; exact milliseconds will vary by host, but the relative breakdown across stages holds.
 
 ---
 

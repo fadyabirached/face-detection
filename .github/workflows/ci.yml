@@ -35,7 +35,7 @@ jobs:
           pip install pytest ruff
 
       - name: Lint (app.py, config.py, tests/)
-        run: ruff check app.py config.py tests/
+        run: ruff check app.py config.py benchmark.py tests/
 
       - name: Run tests
         run: pytest -v
