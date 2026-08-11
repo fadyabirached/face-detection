@@ -1,6 +1,7 @@
 # 👤 Face Recognition System
 
-[![CI](https://github.com/fadyabirached/face-detection/actions/workflows/ci.yml/badge.svg)](https://github.com/fadyabirached/face-detection/actions/workflows/ci.yml)
+[![CI](https://github.com/fadyabirached/face-recognition/actions/workflows/ci.yml/badge.svg)](https://github.com/fadyabirached/face-recognition/actions/workflows/ci.yml)
+[![Build and Push to ACR](https://github.com/fadyabirached/face-recognition/actions/workflows/deploy.yml/badge.svg)](https://github.com/fadyabirached/face-recognition/actions/workflows/deploy.yml)
 
 A production-grade face recognition system built with **FaceNet**, **SVM**, and **Gradio**.  
 Trained on the [LFW Dataset](https://www.kaggle.com/datasets/jessicali9530/lfw-dataset) — achieving **98.18% test accuracy** across 62 identities.
@@ -47,7 +48,7 @@ Input Image
 ## Project Structure
 
 ```
-face-detection/
+face-recognition/
 ├── app.py                       # Gradio application (UI + inference)
 ├── config.py                    # All configuration & hyperparameters
 ├── face-detection.ipynb         # Data prep, training & evaluation notebook
@@ -55,7 +56,10 @@ face-detection/
 ├── .env.example                 # Copy to .env to override config.py defaults
 ├── .gitignore                   # Git ignore rules
 ├── tests/                       # Model-free unit tests (pytest)
-├── .github/workflows/ci.yml     # Lint + test on every push
+├── .github/workflows/ci.yml     # Lint + test on every push/PR to main
+├── .github/workflows/deploy.yml # Build & push Docker image to Azure Container Registry on push to main
+├── Dockerfile                   # CPU-only image for serving the Gradio app
+├── .dockerignore                # Keeps dataset/venv/notebooks out of the image
 ├── README.md                    # This file
 ├── face_recognition_model.pkl   # Trained SVM classifier — NOT in this repo, see below
 └── idx2label.npy                # Class index → identity name mapping — NOT in this repo, see below
@@ -82,8 +86,8 @@ There are two separate paths depending on what you want to do:
 
 ### 1. Clone & enter the project
 ```bash
-git clone https://github.com/fadyabirached/face-detection.git
-cd face-detection
+git clone https://github.com/fadyabirached/face-recognition.git
+cd face-recognition
 ```
 
 ### 2. Create a virtual environment
@@ -182,6 +186,50 @@ ruff check app.py config.py tests/     # lint
 
 GitHub Actions (`.github/workflows/ci.yml`) runs both on every push/PR to `main`. CI never
 downloads the dataset or the trained model — it only exercises the model-free code paths.
+
+---
+
+## CI/CD & Deployment
+
+Two independent GitHub Actions workflows run on this repo:
+
+| Workflow | File | Trigger | What it does |
+|---|---|---|---|
+| **CI** | `.github/workflows/ci.yml` | push/PR to `main`, manual | Installs deps, runs `ruff check`, runs `pytest -v` |
+| **Build and Push to ACR** | `.github/workflows/deploy.yml` | push to `main`, manual | Builds the Docker image and pushes it to Azure Container Registry |
+
+### Docker image
+
+The `Dockerfile` builds a CPU-only image:
+- Base: `python:3.11-slim` + the system libs OpenCV needs (`libgl1`, `libglib2.0-0`).
+- Installs CPU-only PyTorch (`--index-url https://download.pytorch.org/whl/cpu`) in its own
+  layer, so the image doesn't balloon past 6GB pulling in CUDA builds.
+- Bakes the FaceNet VGGFace2 weights (~110MB) into the image at build time, so containers
+  start instantly instead of re-downloading them on every cold start.
+- Serves the Gradio app on `0.0.0.0:7860` (`EXPOSE 7860`, `CMD ["python", "app.py"]`).
+
+Build and run it locally:
+```bash
+docker build -t face-recognition .
+docker run -p 7860:7860 face-recognition
+```
+
+> The image still needs `face_recognition_model.pkl` and `idx2label.npy` at runtime — see
+> [Reproducing the model](#reproducing-the-model). They aren't baked into the image; mount
+> them in or `COPY` them in a derived image/build stage.
+
+### Cloud deployment (Azure Container Registry)
+
+On every push to `main`, `deploy.yml`:
+1. Logs into the registry `fadyfacerecog.azurecr.io` using the `ACR_USERNAME` / `ACR_PASSWORD`
+   repo secrets.
+2. Builds the image from the `Dockerfile` and pushes two tags:
+   - `fadyfacerecog.azurecr.io/face-recognition:latest`
+   - `fadyfacerecog.azurecr.io/face-recognition:<git-sha>` (immutable, one per commit)
+
+This workflow only builds and publishes the image — it doesn't itself deploy to a running
+service (e.g. an Azure Container App/App Service pulling `:latest` is a separate, manually
+configured step outside this repo).
 
 ---
 
