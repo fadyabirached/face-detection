@@ -230,29 +230,36 @@ relative breakdown across stages holds.
 ### CPU (deployed) vs. GPU
 
 The deployed image (Dockerfile, ACR) is CPU-only by design — see
-[Docker image](#docker-image) for why. `config.DEVICE` defaults to `"cpu"` accordingly, but
-is env-overridable (`DEVICE=cuda`) for one-off local comparisons, e.g. in Colab:
+[Docker image](#docker-image) for why. `config.DEVICE` and `config.MAX_INPUT_DIM` are both
+env-overridable for one-off local comparisons, e.g. in Colab:
 
 ```bash
-DEVICE=cuda python benchmark.py path/to/image1.jpg path/to/image2.jpg
+DEVICE=cuda python benchmark.py path/to/image1.jpg path/to/image2.jpg              # GPU, capped
+DEVICE=cuda MAX_INPUT_DIM=99999 python benchmark.py path/to/image1.jpg path/to/image2.jpg  # GPU, uncapped
 ```
 
-| Environment | End-to-end mean | Throughput |
+Full 2x2 (same two images across all four runs, so these are directly comparable):
+
+| | CPU | GPU (Colab T4) |
 |---|---|---|
-| CPU, uncapped (original) | 355.0 ms | 2.8 faces/sec |
-| CPU (deployed, `MAX_INPUT_DIM`-capped) | 181.9 ms | 5.5 faces/sec |
-| GPU (Colab T4, same code path) | 97.4 ms | 10.3 faces/sec |
+| **Uncapped** (original) | 355.0 ms · 2.8 faces/sec | 297.7 ms · 3.4 faces/sec |
+| **Capped** (`MAX_INPUT_DIM=720`, deployed) | 181.9 ms · 5.5 faces/sec | 97.4 ms · 10.3 faces/sec |
 
-**Full optimization path: 355ms → 97ms, a 3.7x reduction** — roughly 2x from capping detection
-input resolution (a real change in the deployed CPU image), compounded with a further ~1.9x
-from GPU acceleration (benchmarked separately, not part of the CPU deployment).
+Reading the matrix: the resolution cap is worth ~1.95x on CPU and ~3.06x on GPU (bigger win on
+GPU, since it removes more of the pyramid work relative to GPU's already-fast per-pixel cost).
+The device switch alone is worth ~1.2x uncapped and ~1.87x capped — much smaller than you'd
+expect from a GPU, because MTCNN's cascade has real per-stage overhead that doesn't parallelize
+as well as a single big matmul. One anomaly worth being upfront about: GPU align/crop is
+*slower* than CPU align/crop in the uncapped row (76ms vs 59ms) — likely GPU kernel-launch
+overhead not amortized well on that stage at extreme resolution — but it doesn't change the
+end-to-end conclusion.
 
-GPU roughly halves latency, mainly by cutting MTCNN detect (94ms → 44ms) and FaceNet embed
-(50ms → 21ms) — the two stages actually running tensor ops, unlike SVM classification which
-is CPU-bound either way and barely moves (3.6ms → 4.1ms). This isn't the deployed
+**Full path, deployed CPU baseline to GPU-capped: 355.0ms → 97.4ms — a measured 3.65x
+reduction (355.0 / 97.4).** Unlike the earlier estimate, this is one clean before/after on
+identical images, not two benchmarks stitched together. This isn't the deployed
 configuration — running the live app on GPU would mean a different Docker image and a
 GPU-backed host, a real infra/cost decision outside this benchmark's scope — but it's the
-honest ceiling for this architecture if that tradeoff were made.
+honest, reproducible ceiling for this architecture if that tradeoff were made.
 
 ---
 
