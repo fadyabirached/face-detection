@@ -239,8 +239,13 @@ DEVICE=cuda python benchmark.py path/to/image1.jpg path/to/image2.jpg
 
 | Environment | End-to-end mean | Throughput |
 |---|---|---|
+| CPU, uncapped (original) | 355.0 ms | 2.8 faces/sec |
 | CPU (deployed, `MAX_INPUT_DIM`-capped) | 181.9 ms | 5.5 faces/sec |
 | GPU (Colab T4, same code path) | 97.4 ms | 10.3 faces/sec |
+
+**Full optimization path: 355ms → 97ms, a 3.7x reduction** — roughly 2x from capping detection
+input resolution (a real change in the deployed CPU image), compounded with a further ~1.9x
+from GPU acceleration (benchmarked separately, not part of the CPU deployment).
 
 GPU roughly halves latency, mainly by cutting MTCNN detect (94ms → 44ms) and FaceNet embed
 (50ms → 21ms) — the two stages actually running tensor ops, unlike SVM classification which
