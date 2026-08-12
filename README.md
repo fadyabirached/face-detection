@@ -227,6 +227,28 @@ just downscaling input; on CPU, ~180ms end-to-end is close to the floor for this
 architected. These numbers are single-threaded; exact milliseconds will vary by host, but the
 relative breakdown across stages holds.
 
+### CPU (deployed) vs. GPU
+
+The deployed image (Dockerfile, ACR) is CPU-only by design — see
+[Docker image](#docker-image) for why. `config.DEVICE` defaults to `"cpu"` accordingly, but
+is env-overridable (`DEVICE=cuda`) for one-off local comparisons, e.g. in Colab:
+
+```bash
+DEVICE=cuda python benchmark.py path/to/image1.jpg path/to/image2.jpg
+```
+
+| Environment | End-to-end mean | Throughput |
+|---|---|---|
+| CPU (deployed, `MAX_INPUT_DIM`-capped) | 181.9 ms | 5.5 faces/sec |
+| GPU (Colab T4, same code path) | 97.4 ms | 10.3 faces/sec |
+
+GPU roughly halves latency, mainly by cutting MTCNN detect (94ms → 44ms) and FaceNet embed
+(50ms → 21ms) — the two stages actually running tensor ops, unlike SVM classification which
+is CPU-bound either way and barely moves (3.6ms → 4.1ms). This isn't the deployed
+configuration — running the live app on GPU would mean a different Docker image and a
+GPU-backed host, a real infra/cost decision outside this benchmark's scope — but it's the
+honest ceiling for this architecture if that tradeoff were made.
+
 ---
 
 ## CI/CD & Deployment
