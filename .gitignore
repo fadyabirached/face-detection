@@ -55,3 +55,4 @@ logs/
 outputs/
 *.png
 *.jpg
+!screenshots/*.png
