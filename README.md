@@ -10,21 +10,7 @@ Trained on the [LFW Dataset](https://www.kaggle.com/datasets/jessicali9530/lfw-d
 
 ## Architecture
 
-```
-Input Image
-    │
-    ▼
- MTCNN ──────────────── Face detection & alignment → 160×160
-    │
-    ▼
- InceptionResnetV1 ──── FaceNet embedding → 512-dim vector
-    │
-    ▼
- SVM (RBF, C=10) ─────── Classification → identity + confidence
-    │
-    ▼
- Gradio UI ──────────── Annotated image + confidence charts
-```
+<img src="screenshots/architecture-diagram.png" alt="Architecture diagram" width="800"/>
 
 ## Results
 
